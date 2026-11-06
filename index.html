@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Pinzle 1v1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800&family=Libre+Franklin:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-side"><span id="roomTag" class="room-tag hidden"></span></div>
+    <h1 class="logo">Pinzle</h1>
+    <div class="topbar-side right"><button id="leaveBtn" class="link-btn hidden" type="button">Salir</button></div>
+  </header>
+
+  <!-- HOME -->
+  <section id="screenHome" class="screen">
+    <div class="home">
+      <div class="home-tiles" aria-hidden="true">
+        <span class="tile mini correct">P</span><span class="tile mini present">I</span><span class="tile mini absent">N</span><span class="tile mini correct">Z</span>
+      </div>
+      <h2 class="home-title">Pinzle 1v1</h2>
+      <p class="home-sub">Adiviná la palabra antes que tu rival.<br>Rondas ilimitadas, palabras en inglés.</p>
+
+      <!-- Login / registro (solo con Supabase) -->
+      <form id="authBox" class="auth hidden" autocomplete="on">
+        <div class="tabs">
+          <button type="button" class="tab active" data-mode="login">Ingresar</button>
+          <button type="button" class="tab" data-mode="signup">Crear cuenta</button>
+        </div>
+        <input id="authUser" class="hidden" maxlength="14" placeholder="Nombre de usuario" autocomplete="username">
+        <input id="authEmail" type="email" placeholder="Email" autocomplete="email" required>
+        <input id="authPass" type="password" placeholder="Contraseña" autocomplete="current-password" minlength="6" required>
+        <button id="authBtn" class="btn primary" type="submit">Ingresar</button>
+      </form>
+
+      <!-- Jugar -->
+      <div id="playBox" class="play hidden">
+        <div id="profileCard" class="profile hidden">
+          <div>
+            <div id="profName" class="prof-name"></div>
+            <div id="profStats" class="prof-stats"></div>
+          </div>
+          <button id="logoutBtn" class="link-btn" type="button">Cerrar sesión</button>
+        </div>
+
+        <label id="nameField" class="field">
+          <span>Tu nombre</span>
+          <input id="nameInput" maxlength="14" autocomplete="off" placeholder="Jugador">
+        </label>
+
+        <button id="createBtn" class="btn primary" type="button">Crear sala</button>
+
+        <div class="divider"><span>o unite a una</span></div>
+
+        <div class="join-row">
+          <input id="codeInput" maxlength="4" autocomplete="off" placeholder="CÓDIGO">
+          <button id="joinBtn" class="btn" type="button">Unirse</button>
+        </div>
+      </div>
+      <p id="netMode" class="fine"></p>
+    </div>
+  </section>
+
+  <!-- LOBBY -->
+  <section id="screenLobby" class="screen hidden">
+    <div class="lobby">
+      <p class="eyebrow">Código de sala</p>
+      <div id="lobbyCode" class="lobby-code"></div>
+      <button id="copyBtn" class="btn small" type="button">Copiar link de invitación</button>
+      <ul id="playerList" class="player-list"></ul>
+      <button id="startBtn" class="btn primary hidden" type="button">Empezar partida</button>
+      <p id="lobbyHint" class="fine"></p>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="screenGame" class="screen hidden">
+    <div id="scoreboard" class="scoreboard"></div>
+    <div class="arena">
+      <div id="board" class="board"></div>
+      <div id="opponents" class="opponents"></div>
+    </div>
+    <div id="keyboard" class="keyboard"></div>
+  </section>
+
+  <!-- ROUND MODAL -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <p id="modalEyebrow" class="eyebrow"></p>
+      <h2 id="modalTitle"></h2>
+      <div id="modalWord" class="modal-word"></div>
+      <div id="modalScores" class="modal-scores"></div>
+      <button id="nextBtn" class="btn primary" type="button">Siguiente ronda</button>
+      <p id="modalHint" class="fine"></p>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.100.0/dist/umd/supabase.min.js"></script>
+  <script src="words.js"></script>
+  <script src="net.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
