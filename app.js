@@ -2,7 +2,7 @@
   "use strict";
 
   // ---------- Constantes ----------
-  const ROWS = 6, MAX_PLAYERS = 4;
+  const ROWS = 6, MAX_PLAYERS = 5;
   let COLS = 5;
   const HEARTBEAT_MS = 2000, TIMEOUT_MS = 15000;
   const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
