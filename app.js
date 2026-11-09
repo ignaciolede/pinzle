@@ -71,7 +71,7 @@
     if (loading[lang]) return loading[lang];
     loading[lang] = new Promise((resolve, reject) => {
       const s = document.createElement("script");
-      s.src = `words/${lang}.js`;
+      s.src = `words/${lang}.js?v=3`;
       s.onload = () => {
         const raw = (window.PINZLE_WORDS || {})[lang];
         if (!raw) { delete loading[lang]; return reject(new Error("words")); }
