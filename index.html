@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Pinzle 1v1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
         <span class="tile mini correct">P</span><span class="tile mini present">I</span><span class="tile mini absent">N</span><span class="tile mini correct">Z</span>
       </div>
       <h2 class="home-title">Pinzle 1v1</h2>
-      <p class="home-sub">Adiviná la palabra antes que tu rival.<br>Rondas ilimitadas, palabras en inglés.</p>
+      <p class="home-sub">Adiviná la palabra antes que tu rival.<br>En español o inglés, de 5 a 7 letras.</p>
 
       <!-- Login / registro (solo con Supabase) -->
       <form id="authBox" class="auth hidden" autocomplete="on">
@@ -52,6 +52,28 @@
           <input id="nameInput" maxlength="14" autocomplete="off" placeholder="Jugador">
         </label>
 
+        <div class="cfg" role="group" aria-label="Configuración de la sala">
+          <div class="cfg-row">
+            <span class="cfg-label">Idioma</span>
+            <div class="seg" data-key="lang">
+              <button type="button" data-v="es">Español</button>
+              <button type="button" data-v="en">English</button>
+            </div>
+          </div>
+          <div class="cfg-row">
+            <span class="cfg-label">Letras</span>
+            <div class="seg" data-key="len">
+              <button type="button" data-v="5">5</button>
+              <button type="button" data-v="6">6</button>
+              <button type="button" data-v="7">7</button>
+            </div>
+          </div>
+          <label id="lunfRow" class="cfg-row switch-row">
+            <span class="cfg-label">Lunfardo argentino<small>Birra, bondi, chamuyo, laburo…</small></span>
+            <input id="lunfInput" type="checkbox" class="switch">
+          </label>
+        </div>
+
         <button id="createBtn" class="btn primary" type="button">Crear sala</button>
 
         <div class="divider"><span>o unite a una</span></div>
@@ -70,6 +92,7 @@
     <div class="lobby">
       <p class="eyebrow">Código de sala</p>
       <div id="lobbyCode" class="lobby-code"></div>
+      <div id="lobbyCfg" class="cfg-chips"></div>
       <button id="copyBtn" class="btn small" type="button">Copiar link de invitación</button>
       <ul id="playerList" class="player-list"></ul>
       <button id="startBtn" class="btn primary hidden" type="button">Empezar partida</button>
@@ -81,7 +104,7 @@
   <section id="screenGame" class="screen hidden">
     <div id="scoreboard" class="scoreboard"></div>
     <div class="arena">
-      <div id="board" class="board"></div>
+      <div class="board-wrap"><div id="board" class="board"></div></div>
       <div id="opponents" class="opponents"></div>
     </div>
     <div id="keyboard" class="keyboard"></div>
@@ -103,7 +126,6 @@
 
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.100.0/dist/umd/supabase.min.js"></script>
-  <script src="words.js"></script>
   <script src="net.js"></script>
   <script src="auth.js"></script>
   <script src="app.js"></script>

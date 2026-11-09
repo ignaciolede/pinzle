@@ -2,10 +2,14 @@
   "use strict";
 
   // ---------- Constantes ----------
-  const ROWS = 6, COLS = 5, MAX_PLAYERS = 4;
+  const ROWS = 6, MAX_PLAYERS = 4;
+  let COLS = 5;
   const HEARTBEAT_MS = 2000, TIMEOUT_MS = 15000;
   const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const KB = ["qwertyuiop", "asdfghjkl", "⏎zxcvbnm⌫"];
+  const KB = {
+    en: ["qwertyuiop", "asdfghjkl", "⏎zxcvbnm⌫"],
+    es: ["qwertyuiop", "asdfghjklñ", "⏎zxcvbnm⌫"],
+  };
   const RANK = { absent: 1, present: 2, correct: 3 };
 
   const $ = (id) => document.getElementById(id);
@@ -18,6 +22,8 @@
   let phase = "home";          // home | lobby | playing | roundover
   let round = 0, word = null, roundPlayers = [];
   let lastResult = null;
+  let cfg = { lang: "es", len: 5, lunfardo: false };   // configuración de la sala
+  let usedWords = new Set();
   const lastSeen = {};
   let heartbeat = null;
 
@@ -54,6 +60,52 @@
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ---------- Diccionarios (carga diferida por idioma) ----------
+  const dicts = {};      // lang -> {answers:{n:[]}, lunfardo:{n:[]}, valid:{n:Set}}
+  const loading = {};
+
+  function loadWords(lang) {
+    if (dicts[lang]) return Promise.resolve(dicts[lang]);
+    if (loading[lang]) return loading[lang];
+    loading[lang] = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = `words/${lang}.js`;
+      s.onload = () => {
+        const raw = (window.PINZLE_WORDS || {})[lang];
+        if (!raw) { delete loading[lang]; return reject(new Error("words")); }
+        const d = { answers: {}, lunfardo: {}, valid: {} };
+        for (const n of [5, 6, 7]) {
+          d.answers[n] = raw.answers[n].split(" ");
+          d.lunfardo[n] = raw.lunfardo ? raw.lunfardo[n].split(" ") : [];
+          d.valid[n] = new Set(raw.valid[n].split(" "));
+        }
+        delete window.PINZLE_WORDS[lang];
+        dicts[lang] = d;
+        resolve(d);
+      };
+      s.onerror = () => { delete loading[lang]; s.remove(); reject(new Error("words")); };
+      document.head.appendChild(s);
+    });
+    return loading[lang];
+  }
+
+  function normCfg(c) {
+    const lang = c && c.lang === "en" ? "en" : "es";
+    const len = [5, 6, 7].includes(+(c && c.len)) ? +c.len : 5;
+    return { lang, len, lunfardo: lang === "es" && !!(c && c.lunfardo) };
+  }
+
+  function applyCfg(c) {
+    cfg = normCfg(c);
+    COLS = cfg.len;
+    document.documentElement.style.setProperty("--cols", COLS);
+    loadWords(cfg.lang).catch(() => toast("No se pudo cargar el diccionario", 2500));
+  }
+
+  function cfgLabel(c) {
+    return [c.lang === "es" ? "Español" : "English", c.lunfardo ? "Lunfardo" : null, `${c.len} letras`].filter(Boolean);
   }
 
   // ---------- Lógica Wordle ----------
@@ -127,7 +179,7 @@
 
   // ---------- Host ----------
   function hostState() {
-    return { t: "state", hostId: me.id, players, phase, round, word, roundPlayers, result: lastResult };
+    return { t: "state", hostId: me.id, cfg, players, phase, round, word, roundPlayers, result: lastResult };
   }
 
   function broadcastState() {
@@ -157,10 +209,18 @@
     if (phase === "playing") hostCheckRound(null, false);
   }
 
-  function hostStartRound() {
+  async function hostStartRound() {
     if (players.length < 2) return toast("Necesitás al menos 2 jugadores");
+    if (phase === "playing") return;
+    let d;
+    try { d = await loadWords(cfg.lang); } catch (e) { return toast("No se pudo cargar el diccionario", 2500); }
+    if (phase === "playing" || !isHost) return;
+    const pool = cfg.lunfardo ? d.lunfardo[cfg.len] : d.answers[cfg.len];
+    let fresh = pool.filter((w) => !usedWords.has(w));
+    if (!fresh.length) { usedWords.clear(); fresh = pool; }
     round++;
-    word = ANSWERS[Math.floor(Math.random() * ANSWERS.length)];
+    word = fresh[Math.floor(Math.random() * fresh.length)];
+    usedWords.add(word);
     roundPlayers = players.map((p) => p.id);
     phase = "playing";
     lastResult = null;
@@ -191,6 +251,7 @@
   function applyState(s) {
     hostId = s.hostId;
     players = s.players;
+    if (s.cfg && (phase === "home" || s.cfg.lang !== cfg.lang || s.cfg.len !== cfg.len || s.cfg.lunfardo !== cfg.lunfardo)) applyCfg(s.cfg);
     const inGame = s.players.some((p) => p.id === me.id);
     if (!inGame) return;
     clearTimeout(joinTimer);
@@ -231,6 +292,8 @@
     try { await connect(c); } catch (e) { return toast("Error de conexión"); }
     isHost = true;
     hostId = me.id;
+    applyCfg(uiCfg);
+    usedWords = new Set();
     players = [{ id: me.id, name: me.name, score: 0 }];
     phase = "lobby";
     history.replaceState(null, "", "?room=" + c);
@@ -261,7 +324,7 @@
     if (net) { try { net.leave(); } catch (e) {} }
     net = null; code = null; isHost = false; hostId = null;
     players = []; phase = "home"; round = 0; word = null; roundPlayers = []; opp = {};
-    lastResult = null;
+    lastResult = null; usedWords = new Set();
   }
 
   function leave(reason) {
@@ -278,6 +341,7 @@
   function renderLobby() {
     if (!code) return;
     $("lobbyCode").innerHTML = tileRow(code, "correct");
+    $("lobbyCfg").innerHTML = cfgLabel(cfg).map((x) => `<span class="chip">${esc(x)}</span>`).join("");
     $("playerList").innerHTML = players.map((p) => `
       <li><span>${esc(p.name)}${p.id === me.id ? " (vos)" : ""}</span>
       <span class="tag">${p.id === (isHost ? me.id : hostId) ? "Host" : ""}</span></li>`).join("");
@@ -290,7 +354,7 @@
 
   function renderScoreboard() {
     $("scoreboard").innerHTML = players.map((p) =>
-      `<div class="score-chip ${p.id === me.id ? "me" : ""}">${esc(p.name)}<b>${p.score}</b></div>`).join("");
+      `<div class="score-chip ${p.id === me.id ? "me" : ""}"><span>${esc(p.name)}</span><b>${p.score}</b></div>`).join("");
   }
 
   // ---------- Ronda ----------
@@ -331,13 +395,14 @@
 
   function buildKeyboard() {
     const back = '<svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H7.07L2.4 12l4.66-7H22v14zm-11.59-2L14 13.41 17.59 17 19 15.59 15.41 12 19 8.41 17.59 7 14 10.59 10.41 7 9 8.41 12.59 12 9 15.59z"/></svg>';
-    $("keyboard").innerHTML = KB.map((row, i) => {
+    const layout = KB[cfg.lang] || KB.en;
+    $("keyboard").innerHTML = layout.map((row, i) => {
       let keys = [...row].map((k) => {
         if (k === "⏎") return `<button class="key wide" data-k="enter" type="button">Enter</button>`;
         if (k === "⌫") return `<button class="key wide" data-k="back" type="button" aria-label="Borrar">${back}</button>`;
         return `<button class="key" data-k="${k}" type="button">${k}</button>`;
       }).join("");
-      if (i === 1) keys = `<div class="key spacer"></div>${keys}<div class="key spacer"></div>`;
+      if (i === 1 && row.length < 10) keys = `<div class="key spacer"></div>${keys}<div class="key spacer"></div>`;
       return `<div class="kb-row">${keys}</div>`;
     }).join("");
   }
@@ -361,8 +426,8 @@
         rows += `</div>`;
       }
       const status = o.solved ? "¡La adivinó!" : o.done ? "Sin intentos" : `${o.rows.length}/${ROWS}`;
-      return `<div class="opp"><div class="opp-name">${esc(p ? p.name : "Rival")}</div>
-        <div class="opp-board">${rows}</div><div class="opp-status">${status}</div></div>`;
+      return `<div class="opp"><div class="opp-board">${rows}</div>
+        <div class="opp-meta"><div class="opp-name">${esc(p ? p.name : "Rival")}</div><div class="opp-status">${status}</div></div></div>`;
     }).join("");
   }
 
@@ -371,7 +436,8 @@
     if (phase !== "playing" || done || busy) return;
     if (k === "enter") return submit();
     if (k === "back") { current = current.slice(0, -1); return renderCurrent(); }
-    if (/^[a-z]$/.test(k) && current.length < COLS) { current += k; renderCurrent(); }
+    if (k === "ñ" && cfg.lang !== "es") return;
+    if (/^[a-zñ]$/.test(k) && current.length < COLS) { current += k; renderCurrent(); }
   }
 
   function shakeRow(msg) {
@@ -384,7 +450,9 @@
 
   function submit() {
     if (current.length < COLS) return shakeRow("Faltan letras");
-    if (!VALID.has(current)) return shakeRow("No está en la lista");
+    const d = dicts[cfg.lang];
+    if (!d) { loadWords(cfg.lang).catch(() => {}); return shakeRow("Cargando diccionario…"); }
+    if (!d.valid[COLS].has(current)) return shakeRow("No está en la lista");
 
     const guess = current;
     const res = evaluate(guess, word);
@@ -437,7 +505,7 @@
 
     setTimeout(() => {
       if (phase !== "roundover" || msg.round !== round) return;
-      $("modalEyebrow").textContent = `Ronda ${msg.round}`;
+      $("modalEyebrow").textContent = `Ronda ${msg.round} · ${cfgLabel(cfg).join(" · ")}`;
       $("modalTitle").textContent = won ? "¡Ganaste!" : winner ? `Ganó ${winner.name}` : "Nadie la adivinó";
       $("modalWord").innerHTML = tileRow(msg.word.toUpperCase(), won ? "correct" : "absent");
       $("modalScores").innerHTML = [...players].sort((a, b) => b.score - a.score)
@@ -466,10 +534,64 @@
     else press(e.key.toLowerCase());
   });
 
+  // Teclado en pantalla: pointerdown responde al instante y no depende del "click"
+  // (que el bloqueo de doble tap cancela). El click queda solo para activación por teclado.
+  $("keyboard").addEventListener("pointerdown", (e) => {
+    const b = e.target.closest("[data-k]");
+    if (!b || (e.pointerType === "mouse" && e.button !== 0)) return;
+    e.preventDefault();
+    press(b.dataset.k);
+  });
   $("keyboard").addEventListener("click", (e) => {
     const b = e.target.closest("[data-k]");
-    if (b) { b.blur(); press(b.dataset.k); }
+    if (b && e.detail === 0) press(b.dataset.k);
   });
+
+  // ---------- Bloqueo de zoom en mobile (doble tap / pinch) ----------
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 350 && !e.target.closest("input, textarea, select")) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+  document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
+  for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  }
+  document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
+  // ---------- Configuración de sala (home) ----------
+  let uiCfg = { lang: "es", len: 5, lunfardo: false };
+  try { uiCfg = normCfg(JSON.parse(localStorage.getItem("pinzle-cfg")) || uiCfg); } catch (e) {}
+  let lunfPref = uiCfg.lunfardo;   // se recuerda aunque se cambie a inglés y se vuelva
+
+  function renderCfgUI() {
+    document.querySelectorAll(".seg").forEach((seg) => {
+      seg.querySelectorAll("button").forEach((b) => {
+        const on = String(uiCfg[seg.dataset.key]) === b.dataset.v;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", on);
+      });
+    });
+    $("lunfRow").classList.toggle("hidden", uiCfg.lang !== "es");
+    $("lunfInput").checked = uiCfg.lunfardo;
+    try { localStorage.setItem("pinzle-cfg", JSON.stringify(uiCfg)); } catch (e) {}
+  }
+
+  document.querySelectorAll(".seg").forEach((seg) => {
+    seg.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-v]");
+      if (!b) return;
+      uiCfg = normCfg({ ...uiCfg, [seg.dataset.key]: b.dataset.v, lunfardo: lunfPref });
+      renderCfgUI();
+    });
+  });
+  $("lunfInput").addEventListener("change", (e) => {
+    lunfPref = e.target.checked;
+    uiCfg = normCfg({ ...uiCfg, lunfardo: lunfPref });
+    renderCfgUI();
+  });
+  renderCfgUI();
 
   $("createBtn").onclick = createRoom;
   $("joinBtn").onclick = joinRoom;
